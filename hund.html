@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>古代水壶倒水场景（改进版 4）</title>
+    <title>古代水壶倒水场景（改进版 4 - 日落渐变天空盒与草地）</title>
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
@@ -20,6 +20,50 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
+        // 添加天空盒（渐变日落效果）
+        function createSkybox() {
+            const skyboxGeometry = new THREE.BoxGeometry(500, 500, 500);
+
+            const vertexShader = `
+                varying vec3 vWorldPosition;
+                void main() {
+                    vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `;
+
+            const fragmentShader = `
+                varying vec3 vWorldPosition;
+                void main() {
+                    float height = normalize(vWorldPosition).y;
+                    vec3 sunsetBottom = vec3(0.8, 0.2, 0.0);    // 深橙色
+                    vec3 sunsetMiddle = vec3(1.0, 0.5, 0.2);    // 浅橙色
+                    vec3 sunsetTop = vec3(0.5, 0.2, 0.6);       // 紫色
+                    
+                    vec3 color;
+                    if (height < 0.0) {
+                        color = mix(sunsetBottom, sunsetMiddle, (height + 1.0) / 1.0);
+                    } else {
+                        color = mix(sunsetMiddle, sunsetTop, height);
+                    }
+                    
+                    gl_FragColor = vec4(color, 1.0);
+                }
+            `;
+
+            const skyboxMaterial = new THREE.ShaderMaterial({
+                vertexShader: vertexShader,
+                fragmentShader: fragmentShader,
+                side: THREE.BackSide
+            });
+
+            const skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
+            scene.add(skybox);
+        }
+
+        // 创建天空盒
+        createSkybox();
+
         // 添加光源
         const ambientLight = new THREE.AmbientLight(0x404040);
         scene.add(ambientLight);
@@ -27,10 +71,30 @@
         directionalLight.position.set(0, 1, 1);
         scene.add(directionalLight);
 
-        // 创建地面（原木色，无纹理）
+        // 创建地面（渐变草绿色）
         const groundGeometry = new THREE.PlaneGeometry(10, 10);
-        const groundMaterial = new THREE.MeshPhongMaterial({ color: 0xDEB887 });
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        const groundShaderMaterial = new THREE.ShaderMaterial({
+            vertexShader: `
+                varying vec3 vWorldPosition;
+                void main() {
+                    vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vWorldPosition;
+                void main() {
+                    // 基于 Z 轴距离计算渐变（相机朝向负Z方向）
+                    float depth = (vWorldPosition.z + 5.0) / 10.0; // 归一化到 0-1
+                    vec3 lightGreen = vec3(0.6, 0.9, 0.3);  // 浅绿色
+                    vec3 darkGreen = vec3(0.2, 0.5, 0.1);   // 深绿色
+                    vec3 color = mix(lightGreen, darkGreen, depth);
+                    gl_FragColor = vec4(color, 1.0);
+                }
+            `,
+            side: THREE.DoubleSide
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundShaderMaterial);
         ground.rotation.x = -Math.PI / 2;
         scene.add(ground);
 
